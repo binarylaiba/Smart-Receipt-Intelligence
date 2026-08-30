@@ -13,12 +13,18 @@ import plotly.express as px
 from PIL import Image
 from dotenv import load_dotenv
 
+from pathlib import Path
+
 # Load environment variables
-load_dotenv()
+_env_file = Path(__file__).resolve().parent / ".env"
+if _env_file.exists():
+    load_dotenv(dotenv_path=_env_file, override=True)
+else:
+    load_dotenv(override=True)
 
 # Import project modules
 from ocr_engine import preprocess_image, extract_raw_text
-from llm_parser import parse_receipt_with_groq, ReceiptAnalysis
+from llm_parser import parse_receipt_with_groq, resolve_groq_api_key, ReceiptAnalysis
 from analytics import compute_metrics, verify_arithmetic
 
 
@@ -77,8 +83,41 @@ def main():
 
     # --- Sidebar Configuration ---
     with st.sidebar:
-        st.header("⚙️ System Status")
-        st.success("🟢 AI Pipeline Ready")
+        st.header("⚙️ System Status & Config")
+
+        detected_key = resolve_groq_api_key()
+        if detected_key:
+            st.success("🟢 Groq API Key: Active (from Secrets / .env)")
+            user_api_key = st.text_input(
+                "Override Groq API Key (Optional)",
+                type="password",
+                placeholder="gsk_...",
+                help="Leave empty to use the auto-detected key, or enter a new one to override.",
+            )
+            active_groq_key = user_api_key.strip() if user_api_key.strip() else detected_key
+        else:
+            st.warning("⚠️ Groq API Key Not Detected")
+            user_api_key = st.text_input(
+                "Enter Groq API Key",
+                type="password",
+                placeholder="gsk_...",
+                help="Enter your Groq API Key (starts with gsk_). Get one free at https://console.groq.com/keys",
+            )
+            active_groq_key = user_api_key.strip() if user_api_key.strip() else None
+
+            with st.expander("🛠️ How to configure permanently on Streamlit Cloud"):
+                st.markdown(
+                    """
+                    **To avoid entering the key every time on Streamlit Cloud:**
+                    1. Go to your app dashboard on [Streamlit Community Cloud](https://share.streamlit.io/).
+                    2. Click **App Settings** (or three dots `...`) ➜ **Secrets**.
+                    3. Add the following line:
+                    ```toml
+                    GROQ_API_KEY = "gsk_your_groq_api_key_here"
+                    ```
+                    4. Click **Save** and restart the app.
+                    """
+                )
 
         st.markdown("---")
         st.markdown("### 🛠️ Architecture Stack")
@@ -86,7 +125,7 @@ def main():
             """
             - **Vision Preprocessing**: OpenCV Bilateral & Adaptive Gaussian Threshold
             - **OCR Engine**: EasyOCR (Local)
-            - **LLM Reasoning**: Groq Llama / GPT-OSS
+            - **LLM Reasoning**: Groq Llama 3.3 70B
             - **Data Contract**: Pydantic v2
             - **Analytics**: Pandas & Plotly Express
             """
@@ -149,14 +188,21 @@ def main():
                     st.error("❌ Could not extract readable text from the image. Please try a clearer receipt.")
                     return
 
-                # Run LLM Structuring (reads key securely from .env in the backend)
+                if not active_groq_key:
+                    st.error("🔑 **Groq API Key Required**: Please enter your Groq API key in the left sidebar or configure `GROQ_API_KEY` in Streamlit Cloud Secrets.")
+                    st.info("💡 You can get a free Groq API key in seconds at [console.groq.com/keys](https://console.groq.com/keys).")
+                    return
+
+                # Run LLM Structuring (reads key securely from active configuration)
                 with st.spinner("🤖 Structuring with AI & Validating Contract..."):
                     try:
                         receipt_data: ReceiptAnalysis = parse_receipt_with_groq(
                             raw_ocr_text=raw_ocr_text,
+                            api_key=active_groq_key,
                         )
                     except Exception as llm_err:
-                        st.error(f"Failed to parse receipt with LLM: {llm_err}")
+                        st.error(f"❌ Failed to parse receipt with Groq LLM: {llm_err}")
+                        st.info("💡 Please verify that your Groq API key is valid and has not expired. You can obtain a free key at [console.groq.com/keys](https://console.groq.com/keys).")
                         return
 
                 # --- 1. Top KPI Metrics ---

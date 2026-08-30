@@ -1,6 +1,17 @@
+---
+title: AI Receipt Analyser & Financial Assistant
+emoji: 🧾
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+---
+
 # 🧾 AI Receipt Analyser & Financial Assistant
 
-An end-to-end AI system that scans receipts using **Computer Vision (OpenCV)**, extracts raw text with **EasyOCR**, structures items into a validated financial contract with **Groq LLM (Llama / GPT-OSS)** + **Pydantic v2**, and generates spending analytics with **Pandas & Plotly**.
+An end-to-end AI system that scans receipts using **Computer Vision (OpenCV)**, extracts raw text with **EasyOCR**, structures items into a validated financial contract with **Groq LLM (Llama 3.3 70B)** + **Pydantic v2**, and generates spending analytics with **Pandas & Plotly**.
 
 ---
 
@@ -11,6 +22,7 @@ AI RECIPT ANALYSER/
 │
 ├── .env                  # Environment configuration (GROQ_API_KEY)
 ├── requirements.txt      # Production package dependencies
+├── packages.txt          # Linux system dependencies for Streamlit Cloud
 ├── README.md             # Project documentation & run guide
 │
 ├── ocr_engine.py         # Model 1: Image preprocessing & EasyOCR text extraction
@@ -80,28 +92,36 @@ py api.py
 
 ---
 
+## ☁️ Streamlit Community Cloud Deployment (Secrets Setup)
+
+When deploying this repository to **Streamlit Community Cloud** (`share.streamlit.io`):
+1. Note that `.env` files are ignored by git for security reasons and will NOT be on GitHub.
+2. In your Streamlit Cloud Dashboard, go to your deployed app.
+3. Click **App Settings** (or the `⋮` / settings menu at bottom right) ➜ **Secrets**.
+4. Add your Groq API key:
+```toml
+GROQ_API_KEY = "gsk_your_groq_api_key_here"
+```
+5. Click **Save** and restart the app.
+6. Alternatively, you or any user can enter the Groq API key directly into the sidebar text input inside the app UI.
+
+---
+
 ## 🛠️ Troubleshooting Common Issues
 
-### 1. EasyOCR Model Download / PyTorch Warnings
-* **Issue:** EasyOCR takes time on first run or hangs.
-* **Fix:** EasyOCR downloads detection/recognition neural network weights (`~100MB`) to `~/.EasyOCR/` on the initial execution. Ensure internet connectivity on the first run.
+### 1. EasyOCR Model Download / PyTorch
+* **Issue:** EasyOCR takes extra time on the first run.
+* **Fix:** EasyOCR automatically downloads detection/recognition neural network weights (`~100MB`) to `~/.EasyOCR/` on the initial execution.
 * **CPU vs GPU:** If you do not have CUDA installed, EasyOCR automatically runs on CPU without any extra setup.
 
 ### 2. OpenCV Headless vs GUI Conflict
 * **Issue:** `ImportError: cannot import name '...' from 'cv2'` or Qt platform plugin errors.
-* **Fix:** Use `opencv-python-headless` instead of `opencv-python` to avoid desktop GUI dependencies in server/Streamlit environments:
-  ```bash
-  pip uninstall opencv-python opencv-python-headless -y
-  pip install opencv-python-headless
-  ```
+* **Fix:** Use `opencv-python-headless` instead of `opencv-python` to avoid desktop GUI dependencies in server/Streamlit environments.
 
-### 3. Windows Long Path Errors (PyTorch / EasyOCR)
-* **Issue:** `[Errno 2] No such file or directory` during model extraction on Windows.
-* **Fix:** Enable long paths in Windows registry or run terminal as Administrator:
-  ```cmd
-  reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f
-  ```
+### 3. Groq Model Fallbacks
+* **Active Models:** `llm_parser.py` includes automatic fallback across active high-speed models (`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `llama3-70b-8192`).
 
-### 4. Groq Model Not Found (404)
-* **Issue:** Specific model deprecated or unavailable on your Groq tier.
-* **Fix:** `llm_parser.py` includes automatic fallback across active models (`openai/gpt-oss-120b`, `qwen/qwen3.6-27b`, `llama-3.3-70b-versatile`).
+---
+
+## 📜 License
+MIT License - Open for personal and commercial usage.

@@ -1,15 +1,14 @@
-# Use official lightweight Python image
+# Use official Python lightweight image
 FROM python:3.10-slim
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \
+    HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
 
-# Set working directory
-WORKDIR /app
-
-# Install system dependencies needed for OpenCV, EasyOCR, and PyTorch
+# Install system dependencies for OpenCV, EasyOCR, and PyTorch
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libgl1 \
@@ -17,19 +16,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Create non-root user (Hugging Face Spaces default UID 1000)
+RUN useradd -m -u 1000 user
+USER user
+WORKDIR /home/user/app
 
-# Pre-download EasyOCR default English model weights into container cache
+# Copy requirements and install dependencies as non-root user
+COPY --chown=user:user requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Pre-download EasyOCR model weights into user cache
 RUN python -c "import easyocr; easyocr.Reader(['en'], gpu=False)"
 
 # Copy application files
-COPY . .
+COPY --chown=user:user . .
 
-# Expose default Streamlit port (8501) and FastAPI port (8000)
-EXPOSE 8501 8000
+# Hugging Face Spaces listens on port 7860
+EXPOSE 7860
 
-# Default command: run Streamlit web app
-# (Can be overridden in docker run or docker-compose to run api.py)
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Launch Streamlit on port 7860
+CMD ["streamlit", "run", "app.py", "--server.port=7860", "--server.address=0.0.0.0"]

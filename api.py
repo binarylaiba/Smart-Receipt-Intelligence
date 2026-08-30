@@ -7,6 +7,16 @@ structured financial analyses.
 from __future__ import annotations
 
 import io
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+_env_file = Path(__file__).resolve().parent / ".env"
+if _env_file.exists():
+    load_dotenv(dotenv_path=_env_file, override=True)
+else:
+    load_dotenv(override=True)
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image

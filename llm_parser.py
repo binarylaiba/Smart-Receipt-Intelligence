@@ -12,9 +12,16 @@ import json
 from typing import List, Literal, Optional
 from pydantic import BaseModel, Field, ValidationError
 
+from pathlib import Path
+
 try:
-    from dotenv import load_dotenv
-    load_dotenv()
+    from dotenv import load_dotenv, find_dotenv
+    # Load .env from workspace or parent directory
+    _env_file = Path(__file__).resolve().parent / ".env"
+    if _env_file.exists():
+        load_dotenv(dotenv_path=_env_file, override=True)
+    else:
+        load_dotenv(find_dotenv(), override=True)
 except ImportError:
     pass
 
@@ -135,6 +142,61 @@ def _build_system_prompt() -> str:
     )
 
 
+def resolve_groq_api_key(api_key: Optional[str] = None) -> Optional[str]:
+    """Resolve Groq API key from parameter, Streamlit secrets, or environment variables.
+
+    Args:
+        api_key: Optional explicitly provided key.
+
+    Returns:
+        Optional[str]: Cleaned API key string if found, otherwise None.
+    """
+    if api_key and str(api_key).strip():
+        return str(api_key).strip().strip("'\"")
+
+    # 1. Check Streamlit Secrets (for Streamlit Community Cloud deployments)
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets"):
+            for key_name in ["GROQ_API_KEY", "groq_api_key", "groq_api", "GROQ_KEY"]:
+                if key_name in st.secrets:
+                    val = st.secrets[key_name]
+                    if val and str(val).strip():
+                        return str(val).strip().strip("'\"")
+            # Also check nested dictionary [groq] or [secrets]
+            if "groq" in st.secrets and isinstance(st.secrets["groq"], dict):
+                for sub_key in ["api_key", "GROQ_API_KEY", "groq_api_key"]:
+                    if sub_key in st.secrets["groq"]:
+                        val = st.secrets["groq"][sub_key]
+                        if val and str(val).strip():
+                            return str(val).strip().strip("'\"")
+    except Exception:
+        pass
+
+    # 2. Check direct environment variables
+    for env_var in ["GROQ_API_KEY", "groq_api_key", "groq_api", "GROQ_KEY"]:
+        val = os.environ.get(env_var)
+        if val and val.strip():
+            return val.strip().strip("'\"")
+
+    # 3. Try reloading from local .env file
+    try:
+        from dotenv import load_dotenv, find_dotenv
+        _env_file = Path(__file__).resolve().parent / ".env"
+        if _env_file.exists():
+            load_dotenv(dotenv_path=_env_file, override=True)
+        else:
+            load_dotenv(find_dotenv(), override=True)
+        for env_var in ["GROQ_API_KEY", "groq_api_key", "groq_api", "GROQ_KEY"]:
+            val = os.environ.get(env_var)
+            if val and val.strip():
+                return val.strip().strip("'\"")
+    except Exception:
+        pass
+
+    return None
+
+
 def parse_receipt_with_groq(
     raw_ocr_text: str,
     api_key: Optional[str] = None,
@@ -144,8 +206,8 @@ def parse_receipt_with_groq(
 
     Args:
         raw_ocr_text: Unstructured text extracted by OCR engine.
-        api_key: Optional Groq API key. If omitted, reads from GROQ_API_KEY or groq_api environment variable.
-        model_name: Optional Groq model identifier (defaults to available high-performing model).
+        api_key: Optional Groq API key. If omitted, resolves from Streamlit secrets, environment, or .env.
+        model_name: Optional Groq model identifier (defaults to available high-performing models).
 
     Returns:
         ReceiptAnalysis: Validated Pydantic model with structured receipt data.
@@ -164,17 +226,19 @@ def parse_receipt_with_groq(
     if not raw_ocr_text or not raw_ocr_text.strip():
         raise ValueError("raw_ocr_text cannot be empty.")
 
-    resolved_api_key = api_key or os.environ.get("GROQ_API_KEY") or os.environ.get("groq_api")
+    resolved_api_key = resolve_groq_api_key(api_key)
+
     if not resolved_api_key:
         raise ValueError(
-            "Groq API key not found. Please provide `api_key` or set `GROQ_API_KEY` in your .env file."
+            "Groq API key not found. Please provide `api_key`, enter it in the Streamlit sidebar, "
+            "or configure `GROQ_API_KEY` in Streamlit Secrets (App Settings -> Secrets) or your .env file."
         )
 
-    # Candidate models in priority order
+    # Valid Groq model candidates in priority order
     candidate_models = (
         [model_name]
         if model_name
-        else ["qwen/qwen3.6-27b", "openai/gpt-oss-120b", "llama-3.3-70b-versatile"]
+        else ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "llama3-70b-8192"]
     )
 
     client = Groq(api_key=resolved_api_key)
