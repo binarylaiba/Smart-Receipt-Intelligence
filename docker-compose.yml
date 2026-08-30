@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  streamlit-dashboard:
+    build: .
+    container_name: receipt_analyzer_ui
+    ports:
+      - "8501:8501"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    restart: unless-stopped
+
+  fastapi-backend:
+    build: .
+    container_name: receipt_analyzer_api
+    command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    restart: unless-stopped
