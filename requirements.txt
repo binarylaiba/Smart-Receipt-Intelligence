@@ -1,22 +1,25 @@
-# AI Receipt Analyser & Financial Assistant Dependencies
-# Core LLM & Validation
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Core LLM & Data Validation
 groq>=0.11.0
 pydantic>=2.7.0
 python-dotenv>=1.0.1
 
-# Computer Vision & OCR
+# Computer Vision & Lightweight CPU OCR
 opencv-python-headless>=4.9.0.80
-easyocr>=1.7.1
 pillow>=10.3.0
-numpy>=1.26.0
+numpy>=1.24.0,<2.0.0
+torch
+torchvision
+easyocr>=1.7.1
 
 # Data Analytics & Visualization
 pandas>=2.2.0
 plotly>=5.20.0
 
-# Web Dashboard & API Server
+# Web Dashboard & Utilities
 streamlit>=1.35.0
+requests>=2.32.0
 fastapi>=0.111.0
 uvicorn>=0.30.0
 python-multipart>=0.0.9
-requests>=2.32.0
